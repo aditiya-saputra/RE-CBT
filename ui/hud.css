@@ -1,0 +1,100 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", "Noto Sans", system-ui, sans-serif;
+  font-size: 13px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+}
+
+#card {
+  height: 100%;
+  border: 1px solid #2a3442;
+  border-radius: 10px;
+  background: #10161f;
+  color: #dbe4f0;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.badge {
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #8fb4ff;
+}
+
+#tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #93a2b8;
+  border: 1px solid #26303d;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+h1#title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+#body {
+  color: #b9c6d8;
+  line-height: 1.35;
+}
+
+#ok {
+  margin-top: auto;
+  align-self: flex-end;
+  border: 1px solid #33404f;
+  border-radius: 6px;
+  background: #1a2230;
+  color: #dbe4f0;
+  font: inherit;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+#ok:hover {
+  background: #223044;
+}
+
+.hidden {
+  display: none;
+}
+
+#card.message {
+  border-color: #2d6a4f;
+}
+
+#card.warn {
+  border-color: #b28121;
+}
+
+#card.kick {
+  border-color: #b4313a;
+}
+
+#card.kick #title,
+#card.kick #body {
+  color: #ffb3b8;
+}

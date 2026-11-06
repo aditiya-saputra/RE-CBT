@@ -1,0 +1,13 @@
+{
+  "exam_url": "https://cbt.sekolah-saya.sch.id/ujian",
+  "supervisor_api_base": "https://cbt.sekolah-saya.sch.id/",
+  "message_endpoint": "api/task-get-pesan/{username}/{activity}",
+  "status_endpoint": "api/task-get-status-peserta/{username}/{activity}",
+  "user_agent": "RE-CBT (sekolah-saya)",
+  "activity": "Ujian-Matematika-01",
+  "participant_username": "peserta01",
+  "message_interval_ms": 300000,
+  "status_interval_ms": 60000,
+  "kick_grace_ms": 15000,
+  "fullscreen": true
+}
