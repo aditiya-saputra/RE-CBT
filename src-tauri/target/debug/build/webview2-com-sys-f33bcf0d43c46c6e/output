@@ -1,0 +1,2 @@
+cargo:rustc-link-search=native=C:\Users\pkbmu\OneDrive\Pictures\Documents\GitHub\RE-CBT\src-tauri\target\debug\build\webview2-com-sys-f33bcf0d43c46c6e\out\x64
+cargo:rustc-link-lib=advapi32

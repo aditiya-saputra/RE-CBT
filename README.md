@@ -45,14 +45,15 @@ kita perbaiki di sini, bukan di-patch.
 
 ```mermaid
 flowchart LR
-    subgraph process[Proses re-cbt.exe (Rust)]
-        CFG[config.rs<br/>verifikasi Ed25519] --> P[preflight.rs<br/>GET TLS-verified]
-        P -->|OK| EXAM["jendela `exam`<br/>WebView2 fullscreen + incognito"]
-        P -->|gagal| RETRY[backoff 3→30 s]
-        EXAM --> POLL[poll.rs<br/>pesan + status kick<br/>min 5 s, backoff]
-        POLL -->|cbt:hud-event| HUD["jendela `hud`<br/>HTML/CSS/JS statis"]
+    subgraph process["Proses re-cbt.exe (Rust)"]
+        CFG["config.rs — verifikasi Ed25519"] --> P["preflight.rs — GET TLS-verified"]
+        P -- "OK" --> EXAM["jendela exam<br/>WebView2 fullscreen + incognito"]
+        P -- "gagal" --> RETRY["backoff 3 s ke 30 s"]
+        RETRY --> P
+        EXAM --> POLL["poll.rs — pesan + status kick, min 5 s"]
+        POLL -- "cbt:hud-event" --> HUD["jendela hud<br/>HTML/CSS/JS statis"]
     end
-    EXAM --> SRV[Server CBT milik sekolah]
+    EXAM --> SRV["Server CBT milik sekolah"]
     POLL --> SRV
 ```
 

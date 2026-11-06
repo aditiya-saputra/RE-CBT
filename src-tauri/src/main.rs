@@ -23,7 +23,6 @@ const DEFAULT_CONFIG_PATH: &str = "config/re-cbt.json";
 
 #[derive(Clone)]
 struct AppState {
-    cfg: Arc<Config>,
     http: reqwest::Client,
 }
 
@@ -81,10 +80,7 @@ fn run_app(cfg: Arc<Config>) {
     };
 
     tauri::Builder::default()
-        .manage(AppState {
-            cfg: cfg.clone(),
-            http,
-        })
+        .manage(AppState { http })
         .setup(move |app| {
             let handle = app.handle().clone();
             if let Err(e) = create_hud(&handle) {
@@ -116,7 +112,10 @@ async fn prepare(handle: tauri::AppHandle, cfg: Arc<Config>) {
     loop {
         match preflight::check(&http, &cfg.exam_url).await {
             Ok(report) => {
-                let _ = report;
+                eprintln!(
+                    "RE-CBT: halaman ujian siap (HTTP {}) via TLS tervalidasi: {}",
+                    report.status, report.final_url
+                );
                 if let Err(e) = open_exam(&handle, &cfg) {
                     hud::emit(
                         &handle,

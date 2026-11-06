@@ -29,8 +29,6 @@ const MAX_BACKOFF_MILLIS: u64 = 60_000;
 
 #[derive(Debug, Error)]
 pub enum PollError {
-    #[error("endpoint pengawas tidak bisa dibentuk URL")]
-    Template,
     #[error("{0}")]
     Transport(#[from] reqwest::Error),
 }
@@ -124,7 +122,6 @@ async fn status_loop(
 ) {
     let base = base_interval(cfg.status_interval_ms);
     let mut backoff: u64 = 1;
-    let mut last_updated = String::new();
     loop {
         let delay = Duration::from_millis(base.saturating_mul(backoff).min(MAX_BACKOFF_MILLIS));
         tokio::time::sleep(delay).await;
@@ -133,7 +130,9 @@ async fn status_loop(
             Some(url) => match fetch_json::<StatusResp>(&http, url).await {
                 Ok(s) => {
                     backoff = 1;
-                    if !is_kick(&s.status) || s.updated.is_empty() || s.updated == last_updated {
+                    // Dedupe kick ditangani guard `kicked` (sekali picu, loop selesai);
+                    // `updated` kosong tetap diabaikan (tanggal periset lama).
+                    if !is_kick(&s.status) || s.updated.is_empty() {
                         continue;
                     }
                     let mut guard = kicked.lock().await;
@@ -142,7 +141,6 @@ async fn status_loop(
                     }
                     *guard = true;
                     drop(guard);
-                    last_updated = s.updated.clone();
                     // Klien lama dialog lalu `app.quit()` atau timeout 15 dtk.
                     hud::emit(
                         &app,

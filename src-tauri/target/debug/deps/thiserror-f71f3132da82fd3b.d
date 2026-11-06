@@ -1,0 +1,12 @@
+C:\Users\pkbmu\OneDrive\Pictures\Documents\GitHub\RE-CBT\src-tauri\target\debug\deps\thiserror-f71f3132da82fd3b.d: C:\Users\pkbmu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\lib.rs C:\Users\pkbmu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\aserror.rs C:\Users\pkbmu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\display.rs C:\Users\pkbmu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\var.rs C:\Users\pkbmu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\private.rs C:\Users\pkbmu\OneDrive\Pictures\Documents\GitHub\RE-CBT\src-tauri\target\debug\build\thiserror-38b448037ba5ef85\out/private.rs
+
+C:\Users\pkbmu\OneDrive\Pictures\Documents\GitHub\RE-CBT\src-tauri\target\debug\deps\libthiserror-f71f3132da82fd3b.rmeta: C:\Users\pkbmu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\lib.rs C:\Users\pkbmu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\aserror.rs C:\Users\pkbmu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\display.rs C:\Users\pkbmu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\var.rs C:\Users\pkbmu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\private.rs C:\Users\pkbmu\OneDrive\Pictures\Documents\GitHub\RE-CBT\src-tauri\target\debug\build\thiserror-38b448037ba5ef85\out/private.rs
+
+C:\Users\pkbmu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\lib.rs:
+C:\Users\pkbmu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\aserror.rs:
+C:\Users\pkbmu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\display.rs:
+C:\Users\pkbmu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\var.rs:
+C:\Users\pkbmu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\thiserror-2.0.21\src\private.rs:
+C:\Users\pkbmu\OneDrive\Pictures\Documents\GitHub\RE-CBT\src-tauri\target\debug\build\thiserror-38b448037ba5ef85\out/private.rs:
+
+# env-dep:OUT_DIR=C:\\Users\\pkbmu\\OneDrive\\Pictures\\Documents\\GitHub\\RE-CBT\\src-tauri\\target\\debug\\build\\thiserror-38b448037ba5ef85\\out
