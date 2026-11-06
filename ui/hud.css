@@ -98,3 +98,45 @@ h1#title {
 #card.kick #body {
   color: #ffb3b8;
 }
+
+#card.ok-green {
+  border-color: #2d6a4f;
+}
+
+#card.ok-green #title {
+  color: #b8e8cd;
+}
+
+#unlock.hidden {
+  display: none !important;
+}
+
+#unlock {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+#unlock input {
+  flex: 1;
+  border: 1px solid #33404f;
+  border-radius: 6px;
+  background: #0b1017;
+  color: #dbe4f0;
+  font: inherit;
+  padding: 4px 8px;
+}
+
+#unlock button {
+  border: 1px solid #2d6a4f;
+  border-radius: 6px;
+  background: #14301f;
+  color: #b8e8cd;
+  font: inherit;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+#unlock button:hover {
+  background: #1a3d27;
+}

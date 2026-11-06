@@ -49,6 +49,17 @@ fn d_semi_subnet_prefix() -> u8 {
     24
 }
 
+fn d_unlock_keys() -> Vec<String> {
+    vec!["control", "c", "b"]
+        .into_iter()
+        .map(String::from)
+        .collect()
+}
+
+/// Panjang minimum `unlock_password` (paritas `passwd 12345` klien lama,
+/// tapi ditandatangani Ed25519 dan dibandingkan di Rust, bukan di UI).
+const UNLOCK_PASSWORD_MIN: usize = 4;
+
 /// Mode ujian, setara `ModeUjian` klien lama (temuan paritas semi/online
 /// di REVERSE_ENGINEERING.md) — tanpa mewarisi URL/kunci rahasianya.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -78,6 +89,17 @@ pub struct Config {
     pub status_endpoint: String,
     /// User-Agent yang dikirim semua request (pengganti injeksi `argv[1]`).
     pub user_agent: String,
+    /// Opsional: endpoint pembangkit token agent (paritas `urlgetagent`
+    /// klien lama). Token yang diperoleh menjadi User-Agent efekti untuk
+    /// preflight, jendela ujian, dan polling. Dipanggil sekali (temuan #23).
+    /// Wajib HTTPS bila diset.
+    #[serde(default)]
+    pub getagent_url: Option<reqwest::Url>,
+    /// Opsional: header tambahan untuk request `getagent_url` (auth/protocol
+    /// sesuai kebutuhan endpoint). Tidak ada nilai bawaan di binary — semua
+    /// dari config ditandatangani. Nama header tidak boleh kosong/kontrol.
+    #[serde(default)]
+    pub getagent_headers: std::collections::HashMap<String, String>,
     /// Kegiatan/ujian, dipakai di template endpoint.
     pub activity: String,
     /// Username peserta (identitas eksplisit, bukan scraping DOM).
@@ -107,6 +129,16 @@ pub struct Config {
     /// memverifikasi mesin berada di LAN ujian (default 24, maks 32).
     #[serde(default = "d_semi_subnet_prefix")]
     pub semi_subnet_prefix: u8,
+    /// Kombinasi tombol buka-kunci kiosk — tekan BERURUTAN dalam jendela 1,5
+    /// dtk (paritas `unlockkeys LControlKey,C,B` klien lama). Token canonical
+    /// lowercase: `control`/`alt`/`shift`/`meta`, huruf/digit (`c`), fungsi
+    /// (`f1`..). Urutan = pengurutan dalam vektor.
+    #[serde(default = "d_unlock_keys")]
+    pub unlock_keys: Vec<String>,
+    /// Password buka-kunci, dibandingkan di Rust (HUD hanya pengantar), min
+    /// 4 karakter. Benar = exit bersih; salah = HUD warning + rate-limit.
+    #[serde(default)]
+    pub unlock_password: String,
 }
 
 #[derive(Debug, Error)]
@@ -136,6 +168,14 @@ pub enum ConfigError {
     InvalidSubnetPrefix { value: u8 },
     #[error("mode semi: field '{field}' harus host IPv4 literal (LAN tanpa DNS), dapat '{host}'")]
     NotIpv4 { field: &'static str, host: String },
+    #[error("field '{field}' minimal {min} karakter, dapat '{value}'")]
+    TooShort {
+        field: &'static str,
+        min: usize,
+        value: String,
+    },
+    #[error("field '{field}' memuat token non-kanonik: '{token}'")]
+    InvalidToken { field: &'static str, token: String },
 }
 
 impl Config {
@@ -153,6 +193,33 @@ impl Config {
         };
         check_https("exam_url", &self.exam_url)?;
         check_https("supervisor_api_base", &self.supervisor_api_base)?;
+        if let Some(agent_url) = &self.getagent_url {
+            check_https("getagent_url", agent_url)?;
+        }
+        for (name, value) in &self.getagent_headers {
+            let name_ok = !name.trim().is_empty()
+                && name.len() <= 64
+                && !name.chars().any(char::is_control)
+                && !name.contains(':');
+            if !name_ok {
+                return Err(ConfigError::InvalidToken {
+                    field: "getagent_headers",
+                    token: name.clone(),
+                });
+            }
+            let value_ok = !value.is_empty()
+                && value.len() <= 1024
+                && !value.chars().any(char::is_control)
+                && !value.starts_with(' ')
+                && !value.ends_with(' ');
+            if !value_ok {
+                return Err(ConfigError::TooShort {
+                    field: "getagent_headers",
+                    min: 1,
+                    value: name.clone(),
+                });
+            }
+        }
 
         if self.semi_subnet_prefix > 32 {
             return Err(ConfigError::InvalidSubnetPrefix {
@@ -188,6 +255,42 @@ impl Config {
         ] {
             if value.trim().is_empty() {
                 return Err(ConfigError::Empty(field));
+            }
+        }
+
+        // Pintu keluar otoritatif: tanpa password, kiosk hanya bisa keluar
+        // via kick server / tanda tangan config baru — operator butuh jalur.
+        if self.unlock_password.trim().is_empty() {
+            return Err(ConfigError::Empty("unlock_password"));
+        }
+        if self.unlock_password.len() < UNLOCK_PASSWORD_MIN {
+            return Err(ConfigError::TooShort {
+                field: "unlock_password",
+                min: UNLOCK_PASSWORD_MIN,
+                value: self.unlock_password.len().to_string(),
+            });
+        }
+        if self.unlock_password.contains(|c: char| c.is_control()) {
+            return Err(ConfigError::InvalidToken {
+                field: "unlock_password",
+                token: "karakter kontrol".to_string(),
+            });
+        }
+        if self.unlock_keys.is_empty() || self.unlock_keys.len() > 5 {
+            return Err(ConfigError::Empty("unlock_keys"));
+        }
+        for key in &self.unlock_keys {
+            let canonical = key.trim().to_lowercase();
+            let ok = !canonical.is_empty()
+                && canonical.len() <= 20
+                && canonical
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit());
+            if !ok {
+                return Err(ConfigError::InvalidToken {
+                    field: "unlock_keys",
+                    token: key.clone(),
+                });
             }
         }
 
@@ -330,7 +433,9 @@ mod tests {
         "message_interval_ms": 300000,
         "status_interval_ms": 60000,
         "kick_grace_ms": 15000,
-        "fullscreen": true
+        "fullscreen": true,
+        "unlock_keys": ["control", "c", "b"],
+        "unlock_password": "rahasia987"
     }"#;
 
     fn sample_config() -> Config {
@@ -396,7 +501,9 @@ mod tests {
         "user_agent": "RE-CBT (sekolah-saya)",
         "activity": "Ujian-Matematika-01",
         "participant_username": "peserta01",
-        "semi_subnet_prefix": 24
+        "semi_subnet_prefix": 24,
+        "unlock_keys": ["control", "c", "b"],
+        "unlock_password": "rahasia987"
     }"#;
 
     fn semi_config() -> Config {
@@ -480,6 +587,116 @@ mod tests {
         assert!(matches!(
             cfg.validate_and_adjust(),
             Err(ConfigError::InvalidSubnetPrefix { value: 48 })
+        ));
+    }
+
+    #[test]
+    fn unlock_default_keys_parity_with_old_client() {
+        let cfg = sample_config();
+        // Paritas klien lama: LControlKey,C,B diterjemahkan menjadi chord kanonik.
+        assert_eq!(cfg.unlock_keys, vec!["control", "c", "b"]);
+        // Tanpa password eksplisit = tanpa pintu keluar intip — ditolak.
+        let mut no_pass = sample_config();
+        no_pass.unlock_password = String::new();
+        assert!(matches!(
+            no_pass.validate_and_adjust(),
+            Err(ConfigError::Empty("unlock_password"))
+        ));
+    }
+
+    #[test]
+    fn unlock_valid_when_set() {
+        let mut cfg = sample_config();
+        cfg.unlock_password = "rahasia987".into();
+        assert!(cfg.validate_and_adjust().is_ok());
+    }
+
+    #[test]
+    fn unlock_password_min_length() {
+        let mut cfg = sample_config();
+        cfg.unlock_password = "123".into();
+        assert!(matches!(
+            cfg.validate_and_adjust(),
+            Err(ConfigError::TooShort {
+                field: "unlock_password",
+                min: 4,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn unlock_keys_validated() {
+        let mut cfg = sample_config();
+        cfg.unlock_password = "rahasia987".into();
+        cfg.unlock_keys = vec!["control".into(), "ctrl c".into()];
+        assert!(matches!(
+            cfg.validate_and_adjust(),
+            Err(ConfigError::InvalidToken {
+                field: "unlock_keys",
+                ..
+            })
+        ));
+        cfg.unlock_keys = vec![];
+        assert!(matches!(
+            cfg.validate_and_adjust(),
+            Err(ConfigError::Empty("unlock_keys"))
+        ));
+    }
+
+    #[test]
+    fn unlock_custom_combo_valid() {
+        let mut cfg = sample_config();
+        cfg.unlock_password = "rahasia987".into();
+        cfg.unlock_keys = vec!["control".into(), "alt".into(), "u".into()];
+        assert!(cfg.validate_and_adjust().is_ok());
+    }
+
+    #[test]
+    fn getagent_optional_by_default() {
+        let mut cfg = sample_config();
+        assert!(cfg.getagent_url.is_none());
+        cfg.getagent_url =
+            Some(reqwest::Url::parse("https://agent-api-uji.example/generate").unwrap());
+        assert!(cfg.validate_and_adjust().is_ok());
+    }
+
+    #[test]
+    fn getagent_must_be_https() {
+        let mut cfg = sample_config();
+        cfg.getagent_url =
+            Some(reqwest::Url::parse("http://agent-api-uji.example/generate").unwrap());
+        assert!(matches!(
+            cfg.validate_and_adjust(),
+            Err(ConfigError::SchemeNotHttps {
+                field: "getagent_url",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn getagent_headers_validated() {
+        let mut cfg = sample_config();
+        cfg.unlock_password = "rahasia987".into();
+        cfg.getagent_headers
+            .insert("reveal".into(), " protokol_1 ".into());
+        assert!(matches!(
+            cfg.validate_and_adjust(),
+            Err(ConfigError::TooShort {
+                field: "getagent_headers",
+                min: 1,
+                ..
+            })
+        ));
+        cfg.getagent_headers.clear();
+        cfg.getagent_headers.insert("b a d:name".into(), "x".into());
+        assert!(matches!(
+            cfg.validate_and_adjust(),
+            Err(ConfigError::InvalidToken {
+                field: "getagent_headers",
+                ..
+            })
         ));
     }
 }

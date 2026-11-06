@@ -1,0 +1,8 @@
+{
+  "$schema": "https://schema.tauri.app/capability",
+  "identifier": "kiosk-core",
+  "description": "Windows kiosk RE-CBT: event listener untuk HUD + IPC. Halaman exam model remote (host ujian dari config) perlu remote grant — hanya command kiosk_key & unlock_check yang terekspos.",
+  "windows": ["exam", "hud"],
+  "remote": { "urls": ["https://*"] },
+  "permissions": ["core:default"]
+}

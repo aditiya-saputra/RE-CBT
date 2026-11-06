@@ -6,9 +6,7 @@ target/
 /src-tauri/gen/
 
 # Kredensial & artefak tanda tangan — JANGAN pernah commit
-/config/ed25519.priv
-/config/*.json
-/config/ed25519.priv
+/config/
 
 # Node (jika suatu saat UI pakai bundler)
 node_modules/

@@ -20,6 +20,12 @@ pub enum HudEvent {
     Kick { reason: String, grace_secs: u64 },
     /// Kesalahan fatal yang tidak bisa dipulihkan.
     Fatal { message: String },
+    /// Chord unlock lengkap — minta password operator di HUD.
+    UnlockPrompt { keys: String },
+    /// Password unlock salah (HUD menampilkan peringatan).
+    UnlockFailed { attempt: u32 },
+    /// Password benar — akan exit bersih.
+    Unlocked,
 }
 
 pub fn emit(app: &AppHandle, ev: HudEvent) {

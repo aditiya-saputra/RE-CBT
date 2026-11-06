@@ -12,5 +12,7 @@
   "status_interval_ms": 60000,
   "kick_grace_ms": 15000,
   "semi_subnet_prefix": 24,
-  "fullscreen": true
+  "fullscreen": true,
+  "unlock_keys": ["control", "c", "b"],
+  "unlock_password": "rahasia987"
 }

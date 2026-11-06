@@ -107,6 +107,8 @@ HUD menampilkan alasan → exit dalam 15 s (dapat diubah `kick_grace_ms`).
 | `message_endpoint` | ✔ | — | template `api/task-get-pesan/{username}/{activity}` (tanpa `/` awal) |
 | `status_endpoint` | ✔ | — | template `api/task-get-status-peserta/{username}/{activity}` |
 | `user_agent` | ✔ | — | identitas UA kirim semua request |
+| `getagent_url` | — | — | endpoint pembangkit token agent (paritas `urlgetagent` klien lama); wajib HTTPS bila diset; dipanggil **satu kali** (perbaikan temuan #23); token sukses jadi User-Agent **efekti**: preflight + jendela ujian + polling |
+| `getagent_headers` | — | `{}` | header tambahan untuk `getagent_url` (auth/protokol endpoint); dari config tertanda tangan, **tanpa** nilai hardcoded di binary |
 | `activity` | ✔ | — | kegiatan/ujian |
 | `participant_username` | ✔ | — | identitas peserta (tidak scraping DOM) |
 | `message_interval_ms` | — | 300000 | di-clamp ≥ 5000 |
@@ -116,12 +118,50 @@ HUD menampilkan alasan → exit dalam 15 s (dapat diubah `kick_grace_ms`).
 | `mode` | — | `online` | `online` (daring) atau `semi` (LAN terisolasi, setara `ModeUjian=1` klien lama) |
 | `offline_probe_url` | ✔ jika `semi` | — | URL HTTPS untuk probe: request **berhasil** = internet terdeteksi = konfigurasi **ditolak** |
 | `semi_subnet_prefix` | — | 24 | prefix subnet `exam_url` untuk verifikasi mesin di LAN ujian (hanya `semi`; maks 32) |
+| `unlock_keys` | — | `control,c,b` | chord berurutan (jendela 1,5 s) meminta pintu operator — paritas `unlockkeys LControlKey,C,B`. Token kanonik: `control`/`alt`/`shift`/`meta`, huruf/digit, `f1`.. |
+| `unlock_password` | ✔ | — | password operator (min 4 char); dibandingkan di **Rust**, HUD hanya pengantar; salah 5× = kunci 30 s |
+
+## Buka-kunci opserta & sifat kiosk
+
+| Jalur masuk | Perlakuan RE-CBT |
+|---|---|
+| `Alt+F4` / tombol ✕ / klik taskbar close | **ditolak** (`prevent_close` di Rust) |
+| context-menu klik-kanan, F12, Ctrl+Shift+I/J/C, Ctrl+R/N/P/S/T/W/U, F5/F11 | dicekal init-script di renderer (block list konstanta di `kiosk.rs`) |
+| chord `unlock_keys` di webview ujian | init-script memipakan tombol → mesin chord di `kiosk.rs` (state machine diuji unit) → HUD minta password |
+| password benar di HUD | kartu "Terbuka" → exit bersih (exit 0) |
+| password salah | HUD warning; 5× salah = kunci 30 dtk (anti-hammer) |
+| keluar lainnya | kick pengawas (`status=2`) atau admin lewat OS — tidak ada hatch tersembunyi |
+
+Jalur unlock hanya hidup bila chord ditekan di webview ujian (fokus); hook OS-level
+global (paritas WH_KEYBOARD_LL `ExamServices`) = item roadmap.
 
 Semua field konfigurasi final | Format ditolak jika: skema bukan HTTPS, field
 kosong, template kehilangan `{username}`/`{activity}`, tanda tangan invalid,
 atau aturan mode semi melanggar (host bukan IPv4 literal, `offline_probe_url`
 hilang/bukan HTTPS, prefix > 32).
 `deny_unknown_fields` aktif — typo field ditolak, bukan diam.
+
+## Akses ANBK & token agent (paritas `urlgetagent`)
+
+Klien lama mengambil **token User-Agent** lalu menyuntikkannya ke semua request
+browser via `onBeforeSendHeaders` (`argv[1]`). RE-CBT menyediakan jalur yang
+sama secara **config-driven** — tanpas secret di binary:
+
+| Aspek token/UA `urlgetagent` lama | RE-CBT |
+|---|---|
+| Endpoint | `getagent_url` dari config (HTTPS wajib); contoh bawaan: `examples/payload-anbk.json` |
+| Metode | **GET** (POST dikembalikan `411 Length Required` oleh server ANBK — verifikasi langsung) |
+| Header | `getagent_headers` dari config; untuk ANBK: `reveal` + `Authorization` — keduanya **wajib**, tanpanya `payload.userAgent` berupa string kosong |
+| Respons | JSON `payload.userAgent` — JWT (issuer Radyalabs, masa berlaku ±5 jam) |
+| Pemanggilan | **satu kali per launch** (klien lama memanggil 2× — temuan #23) |
+| Pemakaian token | `effective_ua` → preflight, `WebviewWindowBuilder.user_agent` jendela ujian, polling; paritas `argv[1]` |
+| Gagal ambil token | HUD `Retry` + backoff (3 s → maks 30 s) — tanpa jendela asing |
+
+Catatan verifikasi lapangan: halaman ujian ANBK (`anbk-siswa.*`) membalas 403
+untuk GET polos maupun ber-token dari jaringan di luar lingkungan ujian
+(WAF, bukan cerminan bug klien). RE-CBT dgn token asli tetap berjalan benar:
+ambil 1 token (228 char), preflight golongkan 403 → HUD Retry → chord +
+password tetap dapat membukakan exit bersih di fase retry.
 
 ## Dua mode: `online` vs `semi` (paritas `ModeUjian=2/1` klien lama)
 
@@ -130,7 +170,7 @@ hilang/bukan HTTPS, prefix > 32).
 | Jaringan ujian | LAN `https://192.168.0.200/` hardcoded | host `exam_url` (IPv4 literal, dari config) | internet penuh | bebas (HTTPS-only) |
 | Pra-cek jaringan | subnet cocok + internet harus **tidak ada** | sama, tapi probe configurable via `offline_probe_url` | tidak ada | preflight TLS `exam_url` |
 | Pelanggaran pra-cek | dialog → keluar | HUD `Fatal` → jeda `kick_grace_ms` → exit(1) | — | — |
-| Token/UA | WCF + AES (passphrase hardcoded) | — (UA dari config) | REST `urlgetagent` dipanggil 2× (temuan #23) | — (UA dari config) |
+| Token/UA | WCF + AES (passphrase hardcoded) | UA dari config (`semi` tanpa token server) | REST `urlgetagent` dipanggil 2× (temuan #23) | `getagent_url` dari config, dipanggil **1×**, token jadi UA efekti (opsional) |
 | Polling pesan/kick | `api/task-get-pesan` + `task-get-status-peserta` | identik | identik | identik |
 
 Catatan mode `semi`:
@@ -152,7 +192,7 @@ Catatan mode `semi`:
 
 ```pwsh
 cargo check      # typecheck tanpa linker (jalur CI cepat)
-cargo test       # unit test konfigurasi (HTTPS-only, clamp, template token)
+cargo test       # unit test (config, chord unlock, subnet, validasi)
 cargo clippy     # linter
 cargo build      # butuh Build Tools MSVC di Windows
 ```
@@ -162,7 +202,10 @@ CI: `.github/workflows/ci.yml` — `cargo check`, `cargo test`, `cargo clippy`,
 
 ## Roadmap
 
-- [ ] Blokir context-menu/DevTools/os-shortcut di window ujian (setara `runningexam.exe` OS-level)
+- [x] Blokir context-menu/DevTools/shortcut renderer di window ujian + anti Alt+F4 (`prevent_close` Rust)
+- [x] Buka-kunci kiosk operator (chord configurable + password Rust + HUD prompt)
+- [x] Pembangkit token agent (paritas `urlgetagent`, perbaikan 1× fetch temuan #23)
+- [ ] Hook keyboard OS-level global (`WH_KEYBOARD_LL` paritas `ExamServices` saat window ujian tidak fokus)
 - [ ] Re-check periodik tata-letak jaringan (subnet/internet) saat ujian `semi` berjalan
 - [ ] Prokses kamera proktor (port `ExamCam` analisis di teardown-CBT)
 - [ ] Bundler `tauri build` + ikon + installer MSIX

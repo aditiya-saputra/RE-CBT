@@ -1,0 +1,20 @@
+{
+  "exam_url": "https://anbk-siswa.pusmendik.kemendikdasmen.go.id/",
+  "supervisor_api_base": "https://anbk-siswa.pusmendik.kemendikdasmen.go.id/",
+  "getagent_url": "https://anbk-webapi.pusmendik.kemendikdasmen.go.id/auth/api/v1/user-agent/generate",
+  "getagent_headers": {
+    "reveal": "anaslopyanto",
+    "Authorization": "cmFkeWEgdGVrbm9sb2dpIGRpZ2l0YWw="
+  },
+  "message_endpoint": "api/task-get-pesan/{username}/{activity}",
+  "status_endpoint": "api/task-get-status-peserta/{username}/{activity}",
+  "user_agent": "RE-CBT (anbk)",
+  "activity": "ANBK-2026-SIMULASI",
+  "participant_username": "peserta01",
+  "message_interval_ms": 300000,
+  "status_interval_ms": 60000,
+  "kick_grace_ms": 15000,
+  "fullscreen": true,
+  "unlock_keys": ["control", "c", "b"],
+  "unlock_password": "rahasia987"
+}
