@@ -19,6 +19,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Format
+        working-directory: src-tauri
         run: cargo fmt --all -- --check
         continue-on-error: true
 
