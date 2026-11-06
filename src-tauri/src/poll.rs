@@ -42,8 +42,8 @@ pub fn start(app: AppHandle, cfg: Arc<Config>, http: reqwest::Client) {
     tauri::async_runtime::spawn(status_loop(app, cfg, http, kicked));
 }
 
-fn base_interval(cfg_ms: u64) -> Duration {
-    Duration::from_millis(cfg_ms.max(MIN_POLL_MILLIS))
+fn base_interval(cfg_ms: u64) -> u64 {
+    cfg_ms.max(MIN_POLL_MILLIS)
 }
 
 #[derive(Deserialize)]
@@ -88,7 +88,7 @@ async fn message_loop(app: AppHandle, cfg: Arc<Config>, http: reqwest::Client) {
     let mut backoff: u64 = 1;
     let mut last_created = String::new();
     loop {
-        let delay = base.saturating_mul(backoff).min(MAX_BACKOFF_MILLIS);
+        let delay = Duration::from_millis(base.saturating_mul(backoff).min(MAX_BACKOFF_MILLIS));
         tokio::time::sleep(delay).await;
         match cfg.expand_endpoint(&cfg.message_endpoint) {
             None => return, // konfigurasi rusak setelah startup; berhenti diam
@@ -100,7 +100,10 @@ async fn message_loop(app: AppHandle, cfg: Arc<Config>, http: reqwest::Client) {
                         last_created = m.created.clone();
                         hud::emit(
                             &app,
-                            HudEvent::Message { message: m.pesan, created: m.created },
+                            HudEvent::Message {
+                                message: m.pesan,
+                                created: m.created,
+                            },
                         );
                     }
                 }
@@ -123,7 +126,7 @@ async fn status_loop(
     let mut backoff: u64 = 1;
     let mut last_updated = String::new();
     loop {
-        let delay = base.saturating_mul(backoff).min(MAX_BACKOFF_MILLIS);
+        let delay = Duration::from_millis(base.saturating_mul(backoff).min(MAX_BACKOFF_MILLIS));
         tokio::time::sleep(delay).await;
         match cfg.expand_endpoint(&cfg.status_endpoint) {
             None => return,

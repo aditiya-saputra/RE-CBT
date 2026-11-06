@@ -12,12 +12,7 @@ mod hud;
 mod poll;
 mod preflight;
 
-use std::{
-    path::{PathBuf},
-    process,
-    sync::Arc,
-    time::Duration,
-};
+use std::{path::PathBuf, process, sync::Arc, time::Duration};
 
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
@@ -86,7 +81,10 @@ fn run_app(cfg: Arc<Config>) {
     };
 
     tauri::Builder::default()
-        .manage(AppState { cfg: cfg.clone(), http })
+        .manage(AppState {
+            cfg: cfg.clone(),
+            http,
+        })
         .setup(move |app| {
             let handle = app.handle().clone();
             if let Err(e) = create_hud(&handle) {
@@ -109,7 +107,9 @@ async fn prepare(handle: tauri::AppHandle, cfg: Arc<Config>) {
     let http = handle.state::<AppState>().http.clone();
     hud::emit(
         &handle,
-        HudEvent::Connecting { url: cfg.exam_url.to_string() },
+        HudEvent::Connecting {
+            url: cfg.exam_url.to_string(),
+        },
     );
 
     let mut delay = Duration::from_secs(3);
@@ -120,7 +120,9 @@ async fn prepare(handle: tauri::AppHandle, cfg: Arc<Config>) {
                 if let Err(e) = open_exam(&handle, &cfg) {
                     hud::emit(
                         &handle,
-                        HudEvent::Fatal { message: format!("Gagal membuka jendela ujian: {e}") },
+                        HudEvent::Fatal {
+                            message: format!("Gagal membuka jendela ujian: {e}"),
+                        },
                     );
                     return;
                 }
@@ -131,7 +133,10 @@ async fn prepare(handle: tauri::AppHandle, cfg: Arc<Config>) {
             Err(err) => {
                 hud::emit(
                     &handle,
-                    HudEvent::Retry { reason: err.to_string(), next_in_secs: delay.as_secs() },
+                    HudEvent::Retry {
+                        reason: err.to_string(),
+                        next_in_secs: delay.as_secs(),
+                    },
                 );
                 tokio::time::sleep(delay).await;
                 delay = delay.saturating_mul(2).min(Duration::from_secs(30));

@@ -98,7 +98,10 @@ pub enum ConfigError {
     #[error("field '{0}' tidak boleh kosong")]
     Empty(&'static str),
     #[error("template '{field}' tidak memuat {token}")]
-    TemplateMissing { field: &'static str, token: &'static str },
+    TemplateMissing {
+        field: &'static str,
+        token: &'static str,
+    },
 }
 
 impl Config {
@@ -177,20 +180,24 @@ struct Envelope {
 fn load_verifying_key(path: &Path) -> Result<VerifyingKey, ConfigError> {
     let hex_str = fs::read_to_string(path)?.trim().to_string();
     let bytes = hex::decode(hex_str)?;
-    let arr: [u8; 32] = bytes.try_into().map_err(|v: Vec<u8>| ConfigError::Crypto(format!(
-        "kunci publik harus 32 byte, dapat {} byte",
-        v.len()
-    )))?;
+    let arr: [u8; 32] = bytes.try_into().map_err(|v: Vec<u8>| {
+        ConfigError::Crypto(format!(
+            "kunci publik harus 32 byte, dapat {} byte",
+            v.len()
+        ))
+    })?;
     VerifyingKey::from_bytes(&arr).map_err(|e| ConfigError::Crypto(format!("kunci publik: {e}")))
 }
 
 fn load_signing_key(path: &Path) -> Result<SigningKey, ConfigError> {
     let hex_str = fs::read_to_string(path)?.trim().to_string();
     let bytes = hex::decode(hex_str)?;
-    let arr: [u8; 32] = bytes.try_into().map_err(|v: Vec<u8>| ConfigError::Crypto(format!(
-        "kunci privat harus 32 byte, dapat {} byte",
-        v.len()
-    )))?;
+    let arr: [u8; 32] = bytes.try_into().map_err(|v: Vec<u8>| {
+        ConfigError::Crypto(format!(
+            "kunci privat harus 32 byte, dapat {} byte",
+            v.len()
+        ))
+    })?;
     Ok(SigningKey::from_bytes(&arr))
 }
 
@@ -206,7 +213,8 @@ pub fn load_verified(config_path: &Path) -> Result<Config, ConfigError> {
     let sig_bytes = hex::decode(&env.signature_hex)?;
     let sig = Signature::from_slice(&sig_bytes)
         .map_err(|e| ConfigError::Crypto(format!("signature: {e}")))?;
-    vk.verify_strict(&payload, &sig).map_err(|_| ConfigError::SignatureInvalid)?;
+    vk.verify_strict(&payload, &sig)
+        .map_err(|_| ConfigError::SignatureInvalid)?;
 
     let mut cfg: Config = serde_json::from_slice(&payload)?;
     cfg.validate_and_adjust()?;
@@ -220,7 +228,10 @@ pub fn genkey(out_dir: &Path) -> Result<(), ConfigError> {
     rand::Rng::fill(&mut rand::thread_rng(), &mut secret);
     let sk = SigningKey::from_bytes(&secret);
     fs::write(out_dir.join("ed25519.priv"), hex::encode(sk.to_bytes()))?;
-    fs::write(out_dir.join("ed25519.pub"), hex::encode(sk.verifying_key().to_bytes()))?;
+    fs::write(
+        out_dir.join("ed25519.pub"),
+        hex::encode(sk.verifying_key().to_bytes()),
+    )?;
     Ok(())
 }
 
@@ -268,7 +279,8 @@ mod tests {
     #[test]
     fn sample_valid() {
         let mut cfg = sample_config();
-        cfg.validate_and_adjust().expect("contoh config harus valid");
+        cfg.validate_and_adjust()
+            .expect("contoh config harus valid");
     }
 
     #[test]
@@ -276,7 +288,13 @@ mod tests {
         let mut cfg = sample_config();
         cfg.exam_url = reqwest::Url::parse("http://cbt.sekolah-saya.sch.id/ujian").unwrap();
         let err = cfg.validate_and_adjust().unwrap_err();
-        assert!(matches!(err, ConfigError::SchemeNotHttps { field: "exam_url", .. }));
+        assert!(matches!(
+            err,
+            ConfigError::SchemeNotHttps {
+                field: "exam_url",
+                ..
+            }
+        ));
     }
 
     #[test]
