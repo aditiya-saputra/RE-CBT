@@ -22,6 +22,8 @@ reqwest = { version = "0.12", default-features = false, features = [
   "http2",
 ] }
 ed25519-dalek = { version = "2", features = ["rand_core", "std"] }
+# Enumerasi IP kartu jaringan lokal untuk pengecekan subnet mode semi.
+if-addrs = "0.13"
 base64 = "0.22"
 hex = "0.4"
 rand = "0.8"

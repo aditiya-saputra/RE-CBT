@@ -45,6 +45,24 @@ fn d_fullscreen() -> bool {
     true
 }
 
+fn d_semi_subnet_prefix() -> u8 {
+    24
+}
+
+/// Mode ujian, setara `ModeUjian` klien lama (temuan paritas semi/online
+/// di REVERSE_ENGINEERING.md) — tanpa mewarisi URL/kunci rahasianya.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Mode {
+    /// Daring: internet penuh, setara `ModeUjian=2` klien lama (tanpa
+    /// pre-check jaringan tambahan; tetap preflight TLS ke `exam_url`).
+    #[default]
+    Online,
+    /// Semi-daring: LAN terisolasi, setara `ModeUjian=1` — mesin wajib satu
+    /// subnet dengan host ujian dan internet **tidak boleh** terdeteksi.
+    Semi,
+}
+
 /// Konfigurasi runtime RE-CBT, dibaca dari payload yang bertanda tangan valid.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -77,6 +95,18 @@ pub struct Config {
     /// Jendela ujian fullscreen kiosk.
     #[serde(default = "d_fullscreen")]
     pub fullscreen: bool,
+    /// Mode ujian: `online` (default) atau `semi` (LAN terisolasi).
+    #[serde(default)]
+    pub mode: Mode,
+    /// Hanya `mode=semi`: URL HTTPS untuk probe kehadiran internet. Probe
+    /// **berhasil** = internet hidup = konfigurasi ditolak. Wajib diset
+    /// eksplisit — tidak ada URL deteksi yang di-hardcode di binary.
+    #[serde(default)]
+    pub offline_probe_url: Option<reqwest::Url>,
+    /// Hanya `mode=semi`: panjang prefix subnet `exam_url` yang dipakai
+    /// memverifikasi mesin berada di LAN ujian (default 24, maks 32).
+    #[serde(default = "d_semi_subnet_prefix")]
+    pub semi_subnet_prefix: u8,
 }
 
 #[derive(Debug, Error)]
@@ -102,6 +132,10 @@ pub enum ConfigError {
         field: &'static str,
         token: &'static str,
     },
+    #[error("prefix subnet tidak valid: {value} (harus <= 32)")]
+    InvalidSubnetPrefix { value: u8 },
+    #[error("mode semi: field '{field}' harus host IPv4 literal (LAN tanpa DNS), dapat '{host}'")]
+    NotIpv4 { field: &'static str, host: String },
 }
 
 impl Config {
@@ -119,6 +153,33 @@ impl Config {
         };
         check_https("exam_url", &self.exam_url)?;
         check_https("supervisor_api_base", &self.supervisor_api_base)?;
+
+        if self.semi_subnet_prefix > 32 {
+            return Err(ConfigError::InvalidSubnetPrefix {
+                value: self.semi_subnet_prefix,
+            });
+        }
+        if self.mode == Mode::Semi {
+            // LAN terisolasi sering tanpa DNS: host uji + API pengawas harus
+            // IPv4 literal (paritas `https://192.168.x.x` klien lama).
+            for (field, url) in [
+                ("exam_url", &self.exam_url),
+                ("supervisor_api_base", &self.supervisor_api_base),
+            ] {
+                let host = url.host_str().unwrap_or_default();
+                let parsed = host.parse::<std::net::Ipv4Addr>();
+                if parsed.is_err() {
+                    return Err(ConfigError::NotIpv4 {
+                        field,
+                        host: host.to_string(),
+                    });
+                }
+            }
+            match &self.offline_probe_url {
+                None => return Err(ConfigError::Empty("offline_probe_url")),
+                Some(url) => check_https("offline_probe_url", url)?,
+            }
+        }
 
         for (field, value) in [
             ("user_agent", &self.user_agent),
@@ -323,5 +384,102 @@ mod tests {
             url.as_str(),
             "https://cbt.sekolah-saya.sch.id/api/task-get-pesan/peserta01/Ujian-Matematika-01"
         );
+    }
+
+    const SEMI_SAMPLE: &str = r#"{
+        "mode": "semi",
+        "exam_url": "https://192.168.10.10/unbk",
+        "supervisor_api_base": "https://192.168.10.10/",
+        "offline_probe_url": "https://cek-konektivitas.example/check",
+        "message_endpoint": "api/task-get-pesan/{username}/{activity}",
+        "status_endpoint": "api/task-get-status-peserta/{username}/{activity}",
+        "user_agent": "RE-CBT (sekolah-saya)",
+        "activity": "Ujian-Matematika-01",
+        "participant_username": "peserta01",
+        "semi_subnet_prefix": 24
+    }"#;
+
+    fn semi_config() -> Config {
+        serde_json::from_str(SEMI_SAMPLE).unwrap()
+    }
+
+    #[test]
+    fn mode_defaults_online_when_absent() {
+        let cfg = sample_config();
+        assert_eq!(cfg.mode, Mode::Online);
+    }
+
+    #[test]
+    fn mode_semi_valid() {
+        let mut cfg = semi_config();
+        assert_eq!(cfg.mode, Mode::Semi);
+        assert!(cfg.validate_and_adjust().is_ok());
+    }
+
+    #[test]
+    fn mode_rejects_unknown_variant() {
+        assert!(serde_json::from_str::<Mode>("\"wifi\"").is_err());
+        assert!(serde_json::from_str::<Mode>("1").is_err());
+    }
+
+    #[test]
+    fn semi_requires_ipv4_exam_host() {
+        let mut cfg = semi_config();
+        cfg.exam_url = reqwest::Url::parse("https://cbt.sekolah-saya.sch.id/unbk").unwrap();
+        assert!(matches!(
+            cfg.validate_and_adjust(),
+            Err(ConfigError::NotIpv4 {
+                field: "exam_url",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn semi_requires_ipv4_supervisor_host() {
+        let mut cfg = semi_config();
+        cfg.supervisor_api_base =
+            reqwest::Url::parse("https://api-lan.sekolah-saya.sch.id/").unwrap();
+        assert!(matches!(
+            cfg.validate_and_adjust(),
+            Err(ConfigError::NotIpv4 {
+                field: "supervisor_api_base",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn semi_requires_probe_url() {
+        let mut cfg = semi_config();
+        cfg.offline_probe_url = None;
+        assert!(matches!(
+            cfg.validate_and_adjust(),
+            Err(ConfigError::Empty("offline_probe_url"))
+        ));
+    }
+
+    #[test]
+    fn semi_probe_must_be_https() {
+        let mut cfg = semi_config();
+        cfg.offline_probe_url =
+            Some(reqwest::Url::parse("http://cek-konektivitas.example/check").unwrap());
+        assert!(matches!(
+            cfg.validate_and_adjust(),
+            Err(ConfigError::SchemeNotHttps {
+                field: "offline_probe_url",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn semi_prefix_beyond_32_rejected() {
+        let mut cfg = semi_config();
+        cfg.semi_subnet_prefix = 48;
+        assert!(matches!(
+            cfg.validate_and_adjust(),
+            Err(ConfigError::InvalidSubnetPrefix { value: 48 })
+        ));
     }
 }

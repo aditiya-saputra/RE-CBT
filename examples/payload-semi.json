@@ -1,0 +1,16 @@
+{
+  "mode": "semi",
+  "exam_url": "https://192.168.10.10/unbk",
+  "supervisor_api_base": "https://192.168.10.10/",
+  "offline_probe_url": "https://www.msftconnecttest.com/connecttest.txt",
+  "message_endpoint": "api/task-get-pesan/{username}/{activity}",
+  "status_endpoint": "api/task-get-status-peserta/{username}/{activity}",
+  "user_agent": "RE-CBT (sekolah-saya)",
+  "activity": "Ujian-Matematika-01",
+  "participant_username": "peserta01",
+  "message_interval_ms": 300000,
+  "status_interval_ms": 60000,
+  "kick_grace_ms": 15000,
+  "semi_subnet_prefix": 24,
+  "fullscreen": true
+}

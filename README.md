@@ -111,12 +111,42 @@ HUD menampilkan alasan → exit dalam 15 s (dapat diubah `kick_grace_ms`).
 | `participant_username` | ✔ | — | identitas peserta (tidak scraping DOM) |
 | `message_interval_ms` | — | 300000 | di-clamp ≥ 5000 |
 | `status_interval_ms` | — | 60000 | di-clamp ≥ 5000 |
-| `kick_grace_ms` | — | 15000 | jeda dialog → exit saat dikick (min 1000) |
+| `kick_grace_ms` | — | 15000 | jeda dialog → exit saat dikick (min 1000); dipakai juga sebagai jeda tampil HUD sebelum exit saat fatal |
 | `fullscreen` | — | true | mode kiosk |
+| `mode` | — | `online` | `online` (daring) atau `semi` (LAN terisolasi, setara `ModeUjian=1` klien lama) |
+| `offline_probe_url` | ✔ jika `semi` | — | URL HTTPS untuk probe: request **berhasil** = internet terdeteksi = konfigurasi **ditolak** |
+| `semi_subnet_prefix` | — | 24 | prefix subnet `exam_url` untuk verifikasi mesin di LAN ujian (hanya `semi`; maks 32) |
 
 Semua field konfigurasi final | Format ditolak jika: skema bukan HTTPS, field
-kosong, template kehilangan `{username}`/`{activity}`, tanda tangan invalid.
+kosong, template kehilangan `{username}`/`{activity}`, tanda tangan invalid,
+atau aturan mode semi melanggar (host bukan IPv4 literal, `offline_probe_url`
+hilang/bukan HTTPS, prefix > 32).
 `deny_unknown_fields` aktif — typo field ditolak, bukan diam.
+
+## Dua mode: `online` vs `semi` (paritas `ModeUjian=2/1` klien lama)
+
+| Aspek | Klien lama `ModeUjian=1` | RE-CBT `semi` | Klien lama `ModeUjian=2` | RE-CBT `online` |
+|---|---|---|---|---|
+| Jaringan ujian | LAN `https://192.168.0.200/` hardcoded | host `exam_url` (IPv4 literal, dari config) | internet penuh | bebas (HTTPS-only) |
+| Pra-cek jaringan | subnet cocok + internet harus **tidak ada** | sama, tapi probe configurable via `offline_probe_url` | tidak ada | preflight TLS `exam_url` |
+| Pelanggaran pra-cek | dialog → keluar | HUD `Fatal` → jeda `kick_grace_ms` → exit(1) | — | — |
+| Token/UA | WCF + AES (passphrase hardcoded) | — (UA dari config) | REST `urlgetagent` dipanggil 2× (temuan #23) | — (UA dari config) |
+| Polling pesan/kick | `api/task-get-pesan` + `task-get-status-peserta` | identik | identik | identik |
+
+Catatan mode `semi`:
+
+- `exam_url` dan `supervisor_api_base` wajib **IPv4 literal** — LAN terisolasi
+  lazimnya tanpa DNS, dan subnet check membutuhkan alamat yang pasti.
+- Probe internet memakai client rustls yang sama (TLS tervalidasi): sukses
+  request ke `offline_probe_url` berarti jaringan tidak terisolasi → konfigurasi
+  ditolak. Gagal DNS/route/timeout (5 dtk) = benar.
+- Pilih probe host di luar jaringan sekolah (contoh: endpoint NCSI Microsoft);
+  endpoint captive-proxy dalam negeri yang memalsukan sertifikat tidak lolos
+  TLS dan tetap terbaca "offline".
+- Kegagalan list antarmuka (`if-addrs`) dihitung gagal-tutup: tanpa IP lokal =
+  subnet check menolak.
+- Semua nilai (host LAN prefix, probe) datang dari konfigurasi Ed25519 — tidak
+  ada IP/passphrase/URL yang mewarisi rahasia klien lama.
 
 ## Verifikasi
 
@@ -133,6 +163,7 @@ CI: `.github/workflows/ci.yml` — `cargo check`, `cargo test`, `cargo clippy`,
 ## Roadmap
 
 - [ ] Blokir context-menu/DevTools/os-shortcut di window ujian (setara `runningexam.exe` OS-level)
+- [ ] Re-check periodik tata-letak jaringan (subnet/internet) saat ujian `semi` berjalan
 - [ ] Prokses kamera proktor (port `ExamCam` analisis di teardown-CBT)
 - [ ] Bundler `tauri build` + ikon + installer MSIX
 - [ ] File log terstruktur (tracing) + upload status tiap polling ke server

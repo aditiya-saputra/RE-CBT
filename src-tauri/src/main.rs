@@ -11,12 +11,13 @@ mod config;
 mod hud;
 mod poll;
 mod preflight;
+mod semi;
 
 use std::{path::PathBuf, process, sync::Arc, time::Duration};
 
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
-use config::Config;
+use config::{Config, Mode};
 use hud::HudEvent;
 
 const DEFAULT_CONFIG_PATH: &str = "config/re-cbt.json";
@@ -99,6 +100,11 @@ fn run_app(cfg: Arc<Config>) {
 /// Alur beranda: preflight -> jendela ujian -> polling pengawas.
 /// Gagal preflight dijadwalkan ulang (backoff 3 -> 30 dtk), pengganti
 /// handler 500 mati + halaman `404.html` klien lama.
+///
+/// Mode `semi` menjalankan precheck tambahan dulu (subnet + ketiadaan
+/// internet); pelanggarannya fatal dan eksplisit: HUD Fatal → jeda
+/// `kick_grace_ms` → exit(1) — paritas "ditolak lalu keluar" klien lama,
+/// bukan retry selamanya di lingkungan yang salah.
 async fn prepare(handle: tauri::AppHandle, cfg: Arc<Config>) {
     let http = handle.state::<AppState>().http.clone();
     hud::emit(
@@ -107,6 +113,23 @@ async fn prepare(handle: tauri::AppHandle, cfg: Arc<Config>) {
             url: cfg.exam_url.to_string(),
         },
     );
+
+    if cfg.mode == Mode::Semi {
+        if let Err(err) = semi::precheck(&http, &cfg).await {
+            let message = format!("Ditolak (mode semi): {err}");
+            eprintln!("RE-CBT: {message}");
+            hud::emit(
+                &handle,
+                HudEvent::Fatal {
+                    message: message.clone(),
+                },
+            );
+            tokio::time::sleep(Duration::from_millis(cfg.kick_grace_ms)).await;
+            handle.exit(1);
+            return;
+        }
+        eprintln!("RE-CBT: mode semi lolos precheck (subnet cocok, internet tidak ada)");
+    }
 
     let mut delay = Duration::from_secs(3);
     loop {
